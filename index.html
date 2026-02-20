@@ -1,0 +1,518 @@
+import React, { useState } from 'react';
+import { 
+  PlusCircle, 
+  Baby, 
+  BookOpen,
+  PieChart,
+  CheckCircle2,
+  CircleDashed,
+  CircleDotDashed,
+  Scale
+} from 'lucide-react';
+
+// --- CONFIGURATION DES ALIMENTS ---
+const MEAL_GROUPS = [
+  { id: 'veg', label: 'Légumes', emoji: '🥦' },
+  { id: 'starch', label: 'Féculents', emoji: '🥔' },
+  { id: 'meat', label: 'Viande', emoji: '🍗' },
+  { id: 'fish', label: 'Poisson', emoji: '🐟' },
+  { id: 'egg', label: 'Œufs', emoji: '🥚' },
+  { id: 'mixed', label: 'Plat', emoji: '🍲' },
+  { id: 'cheese', label: 'Fromage', emoji: '🧀' },
+];
+
+const SNACK_GROUPS = [
+  { id: 'fruit', label: 'Fruits', emoji: '🍎' },
+  { id: 'compote', label: 'Compote', emoji: '🍏' },
+  { id: 'dairy', label: 'Laitage', emoji: '🥛' },
+  { id: 'cake', label: 'Gâteau', emoji: '🍰' },
+  { id: 'cookie', label: 'Biscuit', emoji: '🍪' },
+  { id: 'bread', label: 'Pain', emoji: '🥖' },
+];
+
+// --- PORTIONS (Simplification extrême) ---
+const PORTIONS = [
+  { id: 'all', label: 'Tout mangé', icon: <CheckCircle2 size={24} />, color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-200' },
+  { id: 'half', label: 'La moitié', icon: <CircleDotDashed size={24} />, color: 'text-yellow-500', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+  { id: 'little', label: 'Un peu', icon: <CircleDashed size={24} />, color: 'text-orange-400', bg: 'bg-orange-50', border: 'border-orange-200' },
+];
+
+// --- DONNÉES INITIALES ---
+const TODAY = new Date().toISOString().split('T')[0];
+const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+const INITIAL_ENTRIES = [
+  { id: 1, type: 'meal', category: 'Légumes', emoji: '🥦', portion: 'all', time: '12:15', date: TODAY, details: 'Purée maison' },
+  { id: 2, type: 'meal', category: 'Viande', emoji: '🍗', portion: 'half', time: '12:20', date: TODAY, details: '' },
+  { id: 3, type: 'snack', category: 'Compote', emoji: '🍏', portion: 'all', time: '16:00', date: TODAY, details: '' },
+  { id: 4, type: 'snack', category: 'Biscuit', emoji: '🍪', portion: 'little', time: '16:10', date: TODAY, details: 'Boudoir' },
+  { id: 5, type: 'meal', category: 'Plat', emoji: '🍲', portion: 'all', time: '12:00', date: YESTERDAY, details: '' },
+];
+
+const INITIAL_NOTES = {
+  [TODAY]: "Albane a été super aujourd'hui ! Bonne sieste de 2h ce matin, a adoré la purée.",
+  [YESTERDAY]: "Un peu fatiguée en fin de journée."
+};
+
+const INITIAL_WEIGHTS = [
+  { id: 1, date: '2023-10-01', weight: 3.2 },
+  { id: 2, date: '2023-11-01', weight: 4.1 },
+  { id: 3, date: '2023-12-01', weight: 5.0 },
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('journal');
+  const [entries, setEntries] = useState(INITIAL_ENTRIES);
+  const [dailyNotes, setDailyNotes] = useState(INITIAL_NOTES);
+  const [weights, setWeights] = useState(INITIAL_WEIGHTS);
+
+  const handleAddEntry = (newEntry) => {
+    setEntries([{ ...newEntry, id: Date.now() }, ...entries]);
+    setActiveTab('journal'); 
+  };
+
+  const handleSaveNote = (date, text) => {
+    setDailyNotes(prev => ({ ...prev, [date]: text }));
+  };
+
+  const handleAddWeight = (newWeight) => {
+    const updatedWeights = [...weights, { ...newWeight, id: Date.now() }].sort((a, b) => new Date(a.date) - new Date(b.date));
+    setWeights(updatedWeights);
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans max-w-md mx-auto shadow-2xl relative overflow-hidden">
+      
+      {/* En-tête simple et doux */}
+      <header className="bg-white px-6 py-4 flex items-center justify-between z-10 sticky top-0">
+        <div className="flex items-center gap-3">
+          <div className="bg-rose-100 p-2 rounded-full text-rose-500">
+            <Baby size={24} />
+          </div>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Albane</h1>
+        </div>
+      </header>
+
+      {/* Zone de contenu principale */}
+      <main className="flex-1 overflow-y-auto pb-24">
+        {activeTab === 'journal' && (
+          <JournalView entries={entries} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} />
+        )}
+        {activeTab === 'add' && (
+          <FastAddForm onAdd={handleAddEntry} />
+        )}
+        {activeTab === 'stats' && (
+          <EvolutionView entries={entries} weights={weights} onAddWeight={handleAddWeight} />
+        )}
+      </main>
+
+      {/* Navigation ultra-simplifiée (3 boutons) */}
+      <nav className="bg-white border-t border-slate-100 absolute bottom-0 w-full flex justify-around items-center px-4 py-2 z-20 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+        <NavButton 
+          icon={<BookOpen />} label="Journal" 
+          isActive={activeTab === 'journal'} onClick={() => setActiveTab('journal')} 
+        />
+        
+        {/* Gros bouton d'ajout au centre */}
+        <div className="relative -top-5">
+          <button 
+            onClick={() => setActiveTab('add')}
+            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-rose-200 transition-transform active:scale-95 ${
+              activeTab === 'add' ? 'bg-rose-600 scale-105' : 'bg-rose-500'
+            }`}
+          >
+            <PlusCircle size={32} className="text-white" />
+          </button>
+        </div>
+
+        <NavButton 
+          icon={<PieChart />} label="Évolution" 
+          isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} 
+        />
+      </nav>
+    </div>
+  );
+}
+
+// --- SOUS-COMPOSANTS ---
+
+function NavButton({ icon, label, isActive, onClick }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center w-20 py-2 gap-1.5 transition-colors ${
+        isActive ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600'
+      }`}
+    >
+      <div className={`${isActive ? 'scale-110 transition-transform' : ''}`}>
+        {React.cloneElement(icon, { size: 24, strokeWidth: isActive ? 2.5 : 2 })}
+      </div>
+      <span className="text-[11px] font-semibold">{label}</span>
+    </button>
+  );
+}
+
+// 1. LE JOURNAL (Accueil parents et nounou unifié)
+function JournalView({ entries, dailyNotes, onSaveNote }) {
+  // Grouper par date
+  const groupedEntries = entries.reduce((acc, entry) => {
+    if (!acc[entry.date]) acc[entry.date] = [];
+    acc[entry.date].push(entry);
+    return acc;
+  }, {});
+
+  // Toujours s'assurer qu'aujourd'hui existe dans l'affichage, même vide
+  const today = new Date().toISOString().split('T')[0];
+  if (!groupedEntries[today]) groupedEntries[today] = [];
+
+  const sortedDates = Object.keys(groupedEntries).sort((a, b) => new Date(b) - new Date(a));
+
+  const formatDate = (dateStr) => {
+    if (dateStr === today) return "Aujourd'hui";
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    if (dateStr === yesterday) return "Hier";
+    return new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
+  return (
+    <div className="p-4 space-y-8 animate-in fade-in duration-300">
+      {sortedDates.map(date => (
+        <DayCard 
+          key={date} 
+          date={date} 
+          title={formatDate(date)} 
+          entries={groupedEntries[date]} 
+          note={dailyNotes[date]}
+          onSaveNote={(text) => onSaveNote(date, text)}
+          isToday={date === today}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DayCard({ date, title, entries, note, onSaveNote, isToday }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [noteText, setNoteText] = useState(note || '');
+
+  const handleSave = () => {
+    onSaveNote(noteText);
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+      {/* En-tête de la journée */}
+      <div className={`px-5 py-4 flex items-center justify-between border-b border-slate-100 ${isToday ? 'bg-rose-50/50' : 'bg-slate-50/50'}`}>
+        <h2 className="text-base font-bold text-slate-800 capitalize">{title}</h2>
+        <span className="text-xs font-semibold text-slate-400">{new Date(date).toLocaleDateString('fr-FR')}</span>
+      </div>
+
+      {/* Le mot de la Nounou (Très visible) */}
+      <div className="px-5 py-4 border-b border-slate-50">
+        {isEditing ? (
+          <div className="space-y-3">
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Mot du jour (sieste, humeur...)"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 min-h-[80px] resize-none"
+            />
+            <button onClick={handleSave} className="w-full bg-slate-800 text-white text-sm font-bold py-3 rounded-xl">
+              Enregistrer le mot
+            </button>
+          </div>
+        ) : (
+          <div 
+            onClick={() => setIsEditing(true)}
+            className="cursor-pointer group"
+          >
+            {noteText ? (
+              <div className="bg-amber-50/50 border border-amber-100/50 rounded-2xl p-4 relative">
+                <span className="text-amber-300 absolute -top-1 -left-1 text-2xl">"</span>
+                <p className="text-sm text-slate-700 font-medium leading-relaxed px-2">{noteText}</p>
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 text-center text-slate-400 flex items-center justify-center gap-2 hover:bg-slate-100 transition-colors">
+                <PlusCircle size={16} />
+                <span className="text-sm font-medium">Ajouter le mot du jour</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Ligne du temps des repas */}
+      <div className="px-2 py-4">
+        {entries.length === 0 ? (
+          <p className="text-center text-sm text-slate-400 py-4">Aucun repas noté</p>
+        ) : (
+          <div className="space-y-1">
+            {entries.sort((a, b) => b.time.localeCompare(a.time)).map(entry => (
+              <MinimalEntryCard key={entry.id} entry={entry} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Carte d'aliment ultra-lisible (Une ligne par aliment)
+function MinimalEntryCard({ entry }) {
+  const portionData = PORTIONS.find(p => p.id === entry.portion) || PORTIONS[0];
+  const isMeal = entry.type === 'meal';
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors">
+      <div className="text-slate-400 text-xs font-bold w-10 shrink-0 text-right">{entry.time}</div>
+      
+      <div className={`w-10 h-10 flex items-center justify-center rounded-2xl text-2xl shrink-0 ${isMeal ? 'bg-orange-50' : 'bg-purple-50'}`}>
+        {entry.emoji}
+      </div>
+      
+      <div className="flex-1 flex flex-col justify-center">
+        <span className="text-sm font-bold text-slate-700 leading-tight">
+          {entry.category}
+          {entry.details && <span className="font-normal text-slate-500 ml-1">({entry.details})</span>}
+        </span>
+      </div>
+
+      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${portionData.bg} ${portionData.border} ${portionData.color}`}>
+        {React.cloneElement(portionData.icon, { size: 14, strokeWidth: 3 })}
+        <span className="text-[10px] font-bold uppercase tracking-wide hidden sm:inline-block">{portionData.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// 2. FORMULAIRE D'AJOUT RAPIDE (Pour la nounou, 3 clics max)
+function FastAddForm({ onAdd }) {
+  const [type, setType] = useState('meal');
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [portion, setPortion] = useState('all');
+  const [details, setDetails] = useState('');
+
+  const activeGroups = type === 'meal' ? MEAL_GROUPS : SNACK_GROUPS;
+
+  const handleSubmit = () => {
+    if (!selectedGroup) return;
+    
+    const now = new Date();
+    onAdd({
+      type,
+      category: selectedGroup.label,
+      emoji: selectedGroup.emoji,
+      portion,
+      details,
+      time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      date: now.toISOString().split('T')[0],
+    });
+  };
+
+  return (
+    <div className="p-4 animate-in slide-in-from-bottom-8 duration-300 pb-10">
+      
+      {/* 1. Choix du type */}
+      <div className="flex p-1.5 bg-slate-200/60 rounded-2xl mb-6">
+        <button
+          onClick={() => { setType('meal'); setSelectedGroup(null); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all ${
+            type === 'meal' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500'
+          }`}
+        >
+          <span className="text-xl">🍲</span> Repas
+        </button>
+        <button
+          onClick={() => { setType('snack'); setSelectedGroup(null); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all ${
+            type === 'snack' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500'
+          }`}
+        >
+          <span className="text-xl">🍪</span> Goûter
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-8">
+        
+        {/* 2. Quoi ? (Grille d'emojis très visuelle) */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 text-center">Qu'a-t-elle mangé ?</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {activeGroups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => setSelectedGroup(group)}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all ${
+                  selectedGroup?.id === group.id 
+                    ? 'border-rose-400 bg-rose-50 scale-105 shadow-sm' 
+                    : 'border-transparent bg-slate-50 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-3xl mb-1">{group.emoji}</span>
+                <span className={`text-[10px] font-bold ${selectedGroup?.id === group.id ? 'text-rose-700' : 'text-slate-500'}`}>
+                  {group.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Optionnel : Précision texte */}
+        {selectedGroup && (
+          <div className="animate-in fade-in zoom-in-95 duration-200">
+            <input 
+              type="text" 
+              placeholder="Précision (optionnel, ex: Purée maison)"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              className="w-full bg-slate-50 border-none text-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 text-center placeholder:text-slate-400 font-medium"
+            />
+          </div>
+        )}
+
+        {/* 3. Combien ? (Les 3 gros boutons de portion) */}
+        {selectedGroup && (
+          <div className="animate-in slide-in-from-bottom-4 duration-300">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 text-center">Quelle quantité ?</h3>
+            <div className="flex flex-col gap-2">
+              {PORTIONS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPortion(p.id)}
+                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
+                    portion === p.id ? `${p.border} ${p.bg}` : 'border-transparent bg-slate-50 text-slate-500 opacity-70'
+                  }`}
+                >
+                  <div className={portion === p.id ? p.color : 'text-slate-400'}>
+                    {p.icon}
+                  </div>
+                  <span className={`text-sm font-bold ${portion === p.id ? p.color : 'text-slate-500'}`}>
+                    {p.label}
+                  </span>
+                  
+                  {/* Petit check mark pour le bouton sélectionné */}
+                  {portion === p.id && (
+                    <div className={`ml-auto ${p.color}`}>
+                      <CheckCircle2 size={18} />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bouton Valider (Apparaît seulement si une catégorie est sélectionnée) */}
+        {selectedGroup && (
+          <button 
+            onClick={handleSubmit}
+            className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 transition-transform active:scale-[0.98] flex items-center justify-center gap-2 mt-4 text-lg"
+          >
+            Valider
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 3. ÉVOLUTION (Bilan hebdo et Poids fusionnés pour les parents)
+function EvolutionView({ entries, weights, onAddWeight }) {
+  const [newWeight, setNewWeight] = useState('');
+  
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+  const weeklyEntries = entries.filter(e => new Date(e.date) >= sevenDaysAgo);
+
+  const totalMeals = weeklyEntries.filter(e => e.type === 'meal').length;
+  const totalSnacks = weeklyEntries.filter(e => e.type === 'snack').length;
+
+  const handleWeightSubmit = (e) => {
+    e.preventDefault();
+    if (!newWeight || isNaN(newWeight)) return;
+    onAddWeight({ date: new Date().toISOString().split('T')[0], weight: parseFloat(newWeight) });
+    setNewWeight('');
+  };
+
+  return (
+    <div className="p-4 space-y-6 animate-in slide-in-from-right-8 duration-300">
+      
+      {/* Résumé de la semaine */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center">
+        <h2 className="text-base font-bold text-slate-800 mb-6">Bilan des 7 derniers jours</h2>
+        <div className="flex justify-around items-center">
+          <div>
+            <div className="text-4xl font-black text-orange-500 mb-1">{totalMeals}</div>
+            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Plats</div>
+          </div>
+          <div className="h-12 w-px bg-slate-100"></div>
+          <div>
+            <div className="text-4xl font-black text-purple-500 mb-1">{totalSnacks}</div>
+            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Goûters</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Suivi du Poids */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        <h2 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <Scale className="text-rose-400" size={20} />
+          Courbe de poids
+        </h2>
+
+        {/* Graphique ultra simple (SVG) */}
+        {weights.length > 0 && (
+          <div className="mb-6">
+            <svg viewBox="0 0 300 100" className="w-full h-auto overflow-visible">
+              <polyline
+                fill="none"
+                stroke="#f43f5e" // rose-500
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={weights.map((d, i) => {
+                  const x = 20 + (i * (260 / Math.max(1, weights.length - 1)));
+                  const minW = Math.min(...weights.map(w => w.weight)) - 0.5;
+                  const maxW = Math.max(...weights.map(w => w.weight)) + 0.5;
+                  const y = 80 - ((d.weight - minW) / (maxW - minW)) * 60;
+                  return `${x},${y}`;
+                }).join(' ')}
+              />
+              {weights.map((d, i) => {
+                const x = 20 + (i * (260 / Math.max(1, weights.length - 1)));
+                const minW = Math.min(...weights.map(w => w.weight)) - 0.5;
+                const maxW = Math.max(...weights.map(w => w.weight)) + 0.5;
+                const y = 80 - ((d.weight - minW) / (maxW - minW)) * 60;
+                return (
+                  <circle key={d.id} cx={x} cy={y} r="5" fill="white" stroke="#f43f5e" strokeWidth="3" />
+                );
+              })}
+            </svg>
+            <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-4">
+              <span>{new Date(weights[0].date).toLocaleDateString('fr-FR', {month: 'short'})}</span>
+              <span>Actuel : {weights[weights.length - 1].weight} kg</span>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleWeightSubmit} className="flex gap-2">
+          <input 
+            type="number" 
+            step="0.01"
+            placeholder="Nouveau poids (kg)"
+            value={newWeight}
+            onChange={(e) => setNewWeight(e.target.value)}
+            className="flex-1 bg-slate-50 border-none text-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 font-medium"
+            required
+          />
+          <button type="submit" className="bg-slate-800 text-white font-bold px-6 py-3 rounded-xl">
+            Ajouter
+          </button>
+        </form>
+      </div>
+
+    </div>
+  );
+}
