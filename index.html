@@ -2,49 +2,76 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Meta cruciales pour une vraie app mobile (plein écran, pas de zoom, gestion de l'encoche) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#f8fafc">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Albane</title>
     
     <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <!-- Babel (pour transpiler le React dans le navigateur) -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* Masquer la barre de défilement pour un look "Application mobile" */
+        /* Variables natives pour les encoches iPhone/Android modernes */
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 20px);
+        }
+
+        /* Comportement natif de l'application */
+        body { 
+            -webkit-tap-highlight-color: transparent; /* Retire le carré bleu au clic sur Android */
+            overscroll-behavior-y: none; /* Empêche le tirage vers le bas (pull-to-refresh) */
+            touch-action: pan-y;
+            background-color: #f8fafc; /* slate-50 */
+        }
+
+        /* Masquer la barre de défilement */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Gérer la zone sécurisée en bas sur iPhone */
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        /* Effet "Verre" (Glassmorphism) premium pour les barres de navigation */
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
         
+        /* Rendre les inputs type="date" et "time" parfaits sur mobile */
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
         /* Animations fluides */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInFromBottom { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideInFromRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         
-        .animate-in { animation-duration: 300ms; animation-fill-mode: both; animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+        .animate-in { animation-duration: 400ms; animation-fill-mode: both; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
         .fade-in { animation-name: fadeIn; }
-        .slide-in-from-bottom-4 { animation-name: slideInFromBottom; }
-        .slide-in-from-bottom-8 { animation-name: slideInFromBottom; }
-        .slide-in-from-right-8 { animation-name: slideInFromRight; }
+        .slide-in-from-bottom { animation-name: slideInFromBottom; }
         .zoom-in-95 { animation-name: zoomIn; }
     </style>
 </head>
-<body class="bg-slate-50 antialiased overflow-hidden">
-    <!-- Conteneur principal -->
-    <div id="root"></div>
+<body class="antialiased overflow-hidden text-slate-800 font-sans selection:bg-rose-200">
+    <!-- Conteneur principal (Centré sur PC, Plein écran sur Mobile) -->
+    <div id="root" class="max-w-md mx-auto h-[100dvh] bg-slate-50 flex flex-col relative shadow-2xl overflow-hidden"></div>
 
-    <!-- Script principal de l'application -->
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
         
-        // --- ICÔNES SVG INTÉGRÉES ---
-        // Définies manuellement pour s'assurer que le fichier HTML est 100% autonome
+        // --- ICÔNES SVG INTÉGRÉES (Premium, sans erreurs externes) ---
         const Icon = ({ children, size = 24, className = '', strokeWidth = 2, ...props }) => (
           <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
             {children}
@@ -61,8 +88,9 @@
         const Scale = (props) => <Icon {...props}><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></Icon>;
         const Calendar = (props) => <Icon {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></Icon>;
         const Clock = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Icon>;
+        const Trash2 = (props) => <Icon {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></Icon>;
 
-        // --- CONFIGURATION DES ALIMENTS ---
+        // --- DONNÉES & CONFIG ---
         const MEAL_GROUPS = [
           { id: 'veg', label: 'Légumes', emoji: '🥦' },
           { id: 'starch', label: 'Féculents', emoji: '🥔' },
@@ -85,14 +113,12 @@
           { id: 'bread', label: 'Pain', emoji: '🥖' },
         ];
 
-        // --- PORTIONS ---
         const PORTIONS = [
-          { id: 'all', label: 'Tout mangé', icon: <CheckCircle2 size={24} />, color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-200' },
-          { id: 'half', label: 'La moitié', icon: <CircleDotDashed size={24} />, color: 'text-yellow-500', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+          { id: 'all', label: 'Tout mangé', icon: <CheckCircle2 size={24} />, color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+          { id: 'half', label: 'La moitié', icon: <CircleDotDashed size={24} />, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200' },
           { id: 'little', label: 'Un peu', icon: <CircleDashed size={24} />, color: 'text-orange-400', bg: 'bg-orange-50', border: 'border-orange-200' },
         ];
 
-        // --- DONNÉES INITIALES ---
         const TODAY = new Date().toISOString().split('T')[0];
         const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
@@ -104,16 +130,8 @@
           { id: 5, type: 'meal', category: 'Plat', emoji: '🍲', portion: 'all', time: '12:00', date: YESTERDAY, details: '' },
         ];
 
-        const INITIAL_NOTES = {
-          [TODAY]: "Albane a été super aujourd'hui ! Bonne sieste de 2h ce matin, a adoré la purée.",
-          [YESTERDAY]: "Un peu fatiguée en fin de journée."
-        };
-
-        const INITIAL_WEIGHTS = [
-          { id: 1, date: '2023-10-01', weight: 3.2 },
-          { id: 2, date: '2023-11-01', weight: 4.1 },
-          { id: 3, date: '2023-12-01', weight: 5.0 },
-        ];
+        const INITIAL_NOTES = { [TODAY]: "Albane a été super aujourd'hui ! Bonne sieste de 2h ce matin, a adoré la purée." };
+        const INITIAL_WEIGHTS = [{ id: 1, date: '2023-10-01', weight: 3.2 }, { id: 2, date: '2023-11-01', weight: 4.1 }, { id: 3, date: '2023-12-01', weight: 5.0 }];
 
         // --- COMPOSANT PRINCIPAL ---
         function App() {
@@ -126,53 +144,56 @@
             setEntries([{ ...newEntry, id: Date.now() }, ...entries]);
             setActiveTab('journal'); 
           };
-
-          const handleSaveNote = (date, text) => {
-            setDailyNotes(prev => ({ ...prev, [date]: text }));
+          const handleRemoveEntry = (id) => {
+            setEntries(entries.filter(e => e.id !== id));
           };
-
+          const handleSaveNote = (date, text) => setDailyNotes(prev => ({ ...prev, [date]: text }));
           const handleAddWeight = (newWeight) => {
             const updatedWeights = [...weights, { ...newWeight, id: Date.now() }].sort((a, b) => new Date(a.date) - new Date(b.date));
             setWeights(updatedWeights);
           };
 
           return (
-            <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans max-w-md mx-auto shadow-2xl relative overflow-hidden">
-              {/* En-tête */}
-              <header className="bg-white px-6 py-4 flex items-center justify-between z-10 sticky top-0 shadow-sm">
+            <React.Fragment>
+              {/* HEADER PREMIUM GLASSMORPHISM */}
+              <header className="glass-effect z-40 px-6 py-4 flex items-center justify-between border-b border-slate-200/50" style={{ paddingTop: 'calc(var(--sat) + 1rem)' }}>
                 <div className="flex items-center gap-3">
-                  <div className="bg-rose-100 p-2 rounded-full text-rose-500">
+                  <div className="bg-gradient-to-br from-rose-100 to-pink-200 p-2.5 rounded-2xl text-rose-600 shadow-sm border border-white/50">
                     <Baby size={24} />
                   </div>
-                  <h1 className="text-xl font-bold text-slate-800 tracking-tight">Journal d'Albane</h1>
+                  <div>
+                    <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-tight">Albane</h1>
+                    <p className="text-xs font-medium text-slate-400 tracking-wide uppercase">Mon petit journal</p>
+                  </div>
                 </div>
               </header>
 
-              {/* Zone principale */}
-              <main className="flex-1 overflow-y-auto pb-24">
-                {activeTab === 'journal' && <JournalView entries={entries} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} />}
+              {/* ZONE DÉFILABLE (Body) */}
+              <main className="flex-1 overflow-y-auto w-full relative" style={{ paddingBottom: 'calc(var(--sab) + 6rem)' }}>
+                {activeTab === 'journal' && <JournalView entries={entries} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onRemove={handleRemoveEntry} />}
                 {activeTab === 'add' && <FastAddForm onAdd={handleAddEntry} />}
                 {activeTab === 'stats' && <EvolutionView entries={entries} weights={weights} onAddWeight={handleAddWeight} />}
               </main>
 
-              {/* Navigation du bas */}
-              <nav className="bg-white border-t border-slate-100 absolute bottom-0 w-full flex justify-around items-center px-4 py-2 z-20 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+              {/* NAVIGATION DU BAS PREMIUM */}
+              <nav className="glass-effect absolute bottom-0 w-full flex justify-around items-end px-2 border-t border-slate-200/50 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]" style={{ paddingBottom: 'calc(var(--sab) + 0.5rem)', paddingTop: '0.5rem' }}>
                 <NavButton icon={<BookOpen />} label="Journal" isActive={activeTab === 'journal'} onClick={() => setActiveTab('journal')} />
                 
-                <div className="relative -top-5">
+                {/* BOUTON D'AJOUT FLOTTANT */}
+                <div className="relative -top-6">
                   <button 
                     onClick={() => setActiveTab('add')}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-rose-200 transition-transform active:scale-95 ${
-                      activeTab === 'add' ? 'bg-rose-600 scale-105' : 'bg-rose-500'
+                    className={`w-16 h-16 rounded-[2rem] flex items-center justify-center shadow-xl shadow-rose-200/50 transition-all duration-300 active:scale-90 ${
+                      activeTab === 'add' ? 'bg-rose-600 scale-105 rotate-45' : 'bg-gradient-to-tr from-rose-500 to-pink-500'
                     }`}
                   >
-                    <PlusCircle size={32} className="text-white" />
+                    <PlusCircle size={32} className={`text-white transition-transform duration-300 ${activeTab === 'add' ? 'rotate-45' : ''}`} />
                   </button>
                 </div>
 
                 <NavButton icon={<PieChart />} label="Évolution" isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
               </nav>
-            </div>
+            </React.Fragment>
           );
         }
 
@@ -180,21 +201,16 @@
 
         function NavButton({ icon, label, isActive, onClick }) {
           return (
-            <button 
-              onClick={onClick}
-              className={`flex flex-col items-center justify-center w-20 py-2 gap-1.5 transition-colors ${
-                isActive ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <div className={`${isActive ? 'scale-110 transition-transform' : ''}`}>
+            <button onClick={onClick} className={`flex flex-col items-center justify-center w-24 py-2 gap-1.5 transition-colors ${isActive ? 'text-rose-600' : 'text-slate-400 hover:text-slate-600'}`}>
+              <div className={`transition-all duration-300 ${isActive ? 'scale-110 drop-shadow-md' : 'scale-100'}`}>
                 {React.cloneElement(icon, { size: 24, strokeWidth: isActive ? 2.5 : 2 })}
               </div>
-              <span className="text-[11px] font-semibold">{label}</span>
+              <span className="text-[11px] font-bold tracking-wide">{label}</span>
             </button>
           );
         }
 
-        function JournalView({ entries, dailyNotes, onSaveNote }) {
+        function JournalView({ entries, dailyNotes, onSaveNote, onRemove }) {
           const groupedEntries = entries.reduce((acc, entry) => {
             if (!acc[entry.date]) acc[entry.date] = [];
             acc[entry.date].push(entry);
@@ -206,83 +222,68 @@
 
           const sortedDates = Object.keys(groupedEntries).sort((a, b) => new Date(b) - new Date(a));
 
-          const formatDate = (dateStr) => {
-            if (dateStr === today) return "Aujourd'hui";
-            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-            if (dateStr === yesterday) return "Hier";
-            return new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-          };
-
           return (
-            <div className="p-4 space-y-8 animate-in fade-in duration-300">
+            <div className="p-4 space-y-6 animate-in fade-in">
               {sortedDates.map(date => (
-                <DayCard 
-                  key={date} 
-                  date={date} 
-                  title={formatDate(date)} 
-                  entries={groupedEntries[date]} 
-                  note={dailyNotes[date]}
-                  onSaveNote={(text) => onSaveNote(date, text)}
-                  isToday={date === today}
-                />
+                <DayCard key={date} date={date} entries={groupedEntries[date]} note={dailyNotes[date]} onSaveNote={(text) => onSaveNote(date, text)} isToday={date === today} onRemove={onRemove} />
               ))}
             </div>
           );
         }
 
-        function DayCard({ date, title, entries, note, onSaveNote, isToday }) {
+        function DayCard({ date, entries, note, onSaveNote, isToday, onRemove }) {
           const [isEditing, setIsEditing] = useState(false);
           const [noteText, setNoteText] = useState(note || '');
 
-          const handleSave = () => {
-            onSaveNote(noteText);
-            setIsEditing(false);
+          const formatDate = (dateStr) => {
+            const today = new Date().toISOString().split('T')[0];
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            if (dateStr === today) return "Aujourd'hui";
+            if (dateStr === yesterday) return "Hier";
+            return new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
           };
 
+          const handleSave = () => { onSaveNote(noteText); setIsEditing(false); };
+
           return (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className={`px-5 py-4 flex items-center justify-between border-b border-slate-100 ${isToday ? 'bg-rose-50/50' : 'bg-slate-50/50'}`}>
-                <h2 className="text-base font-bold text-slate-800 capitalize">{title}</h2>
-                <span className="text-xs font-semibold text-slate-400">{new Date(date).toLocaleDateString('fr-FR')}</span>
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+              <div className={`px-6 py-4 flex items-center justify-between border-b border-slate-50 ${isToday ? 'bg-gradient-to-r from-rose-50/50 to-transparent' : 'bg-slate-50/30'}`}>
+                <h2 className="text-lg font-bold text-slate-800 capitalize tracking-tight">{formatDate(date)}</h2>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{new Date(date).toLocaleDateString('fr-FR')}</span>
               </div>
 
-              <div className="px-5 py-4 border-b border-slate-50">
+              <div className="px-6 py-5 border-b border-slate-50">
                 {isEditing ? (
-                  <div className="space-y-3">
-                    <textarea
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Mot du jour (sieste, humeur...)"
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 min-h-[80px] resize-none"
-                    />
-                    <button onClick={handleSave} className="w-full bg-slate-800 text-white text-sm font-bold py-3 rounded-xl hover:bg-slate-700 transition-colors">
-                      Enregistrer le mot
+                  <div className="space-y-3 animate-in zoom-in-95 duration-200">
+                    <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Un petit mot sur la journée ?" className="w-full bg-slate-50 border-none text-slate-700 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 min-h-[100px] resize-none font-medium" />
+                    <button onClick={handleSave} className="w-full bg-slate-800 text-white text-sm font-bold py-3.5 rounded-2xl active:scale-95 transition-transform">
+                      Enregistrer
                     </button>
                   </div>
                 ) : (
-                  <div onClick={() => setIsEditing(true)} className="cursor-pointer group">
+                  <div onClick={() => setIsEditing(true)} className="cursor-pointer group active:scale-[0.98] transition-transform">
                     {noteText ? (
-                      <div className="bg-amber-50/50 border border-amber-100/50 rounded-2xl p-4 relative">
-                        <span className="text-amber-300 absolute -top-1 -left-1 text-2xl">"</span>
-                        <p className="text-sm text-slate-700 font-medium leading-relaxed px-2">{noteText}</p>
+                      <div className="bg-amber-50/80 border border-amber-100/50 rounded-2xl p-4 relative">
+                        <span className="text-amber-300 absolute -top-1.5 -left-1.5 text-3xl font-serif">"</span>
+                        <p className="text-sm text-slate-700 font-medium leading-relaxed px-2 relative z-10">{noteText}</p>
                       </div>
                     ) : (
-                      <div className="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 text-center text-slate-400 flex items-center justify-center gap-2 hover:bg-slate-100 transition-colors">
-                        <PlusCircle size={16} />
-                        <span className="text-sm font-medium">Ajouter le mot du jour</span>
+                      <div className="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 text-center text-slate-400 flex items-center justify-center gap-2">
+                        <PlusCircle size={18} />
+                        <span className="text-sm font-bold">Ajouter le mot du jour</span>
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="px-2 py-4">
+              <div className="px-3 py-3">
                 {entries.length === 0 ? (
-                  <p className="text-center text-sm text-slate-400 py-4">Aucun repas noté</p>
+                  <p className="text-center text-sm font-medium text-slate-400 py-6">Aucun repas noté</p>
                 ) : (
                   <div className="space-y-1">
                     {entries.sort((a, b) => b.time.localeCompare(a.time)).map(entry => (
-                      <MinimalEntryCard key={entry.id} entry={entry} />
+                      <MinimalEntryCard key={entry.id} entry={entry} onRemove={() => onRemove(entry.id)} />
                     ))}
                   </div>
                 )}
@@ -291,29 +292,45 @@
           );
         }
 
-        function MinimalEntryCard({ entry }) {
+        function MinimalEntryCard({ entry, onRemove }) {
           const portionData = PORTIONS.find(p => p.id === entry.portion) || PORTIONS[0];
           const isMeal = entry.type === 'meal';
+          const [showDelete, setShowDelete] = useState(false);
 
           return (
-            <div className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors">
-              <div className="text-slate-400 text-xs font-bold w-10 shrink-0 text-right">{entry.time}</div>
+            <div 
+              className="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-colors active:bg-slate-50 relative overflow-hidden"
+              onClick={() => setShowDelete(!showDelete)}
+            >
+              <div className="text-slate-400 text-[11px] font-bold w-10 shrink-0 text-right">{entry.time}</div>
               
-              <div className={`w-10 h-10 flex items-center justify-center rounded-2xl text-2xl shrink-0 ${isMeal ? 'bg-orange-50' : 'bg-purple-50'}`}>
+              <div className={`w-11 h-11 flex items-center justify-center rounded-[1rem] text-2xl shrink-0 shadow-sm border border-white ${isMeal ? 'bg-orange-50' : 'bg-purple-50'}`}>
                 {entry.emoji}
               </div>
               
-              <div className="flex-1 flex flex-col justify-center">
-                <span className="text-sm font-bold text-slate-700 leading-tight">
+              <div className="flex-1 flex flex-col justify-center min-w-0">
+                <span className="text-sm font-bold text-slate-800 leading-tight truncate">
                   {entry.category}
-                  {entry.details && <span className="font-normal text-slate-500 ml-1">({entry.details})</span>}
                 </span>
+                {entry.details && <span className="text-xs font-medium text-slate-400 truncate mt-0.5">{entry.details}</span>}
               </div>
 
-              <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${portionData.bg} ${portionData.border} ${portionData.color}`}>
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shrink-0 ${portionData.bg} ${portionData.border} ${portionData.color}`}>
                 {React.cloneElement(portionData.icon, { size: 14, strokeWidth: 3 })}
-                <span className="text-[10px] font-bold uppercase tracking-wide hidden sm:inline-block">{portionData.label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider">{portionData.label}</span>
               </div>
+
+              {/* Panneau de suppression (s'affiche au clic) */}
+              {showDelete && (
+                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex items-center justify-end px-4 animate-in fade-in z-10">
+                  <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="bg-red-500 text-white p-2.5 rounded-xl shadow-lg active:scale-90 transition-transform">
+                    <Trash2 size={20} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setShowDelete(false); }} className="ml-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm active:scale-90 transition-transform">
+                    Annuler
+                  </button>
+                </div>
+              )}
             </div>
           );
         }
@@ -334,14 +351,12 @@
 
           const handleSubmit = () => {
             if (!selectedGroup) return;
-            onAdd({
-              type, category: selectedGroup.label, emoji: selectedGroup.emoji, portion, details, time, date,
-            });
+            onAdd({ type, category: selectedGroup.label, emoji: selectedGroup.emoji, portion, details, time, date });
           };
 
           return (
-            <div className="p-4 animate-in slide-in-from-bottom-8 duration-300 pb-10">
-              <div className="flex p-1.5 bg-slate-200/60 rounded-2xl mb-6">
+            <div className="p-4 animate-in slide-in-from-bottom duration-300">
+              <div className="flex p-1.5 bg-slate-200/50 backdrop-blur-md rounded-2xl mb-6 shadow-inner">
                 <button
                   onClick={() => { setType('meal'); setSelectedGroup(null); }}
                   className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all ${
@@ -360,57 +375,63 @@
                 </button>
               </div>
 
-              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-8">
+              <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100 space-y-8 relative">
+                
+                {/* Inputs Natifs Premium */}
                 <div className="flex gap-3">
-                  <div className="flex-1 bg-slate-50 rounded-xl flex items-center px-3 border border-slate-100 focus-within:ring-2 ring-rose-200 transition-all">
-                    <Calendar size={16} className="text-slate-400 mr-2 shrink-0" />
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-transparent border-none text-slate-700 text-sm py-3 w-full focus:outline-none font-medium" />
+                  <div className="flex-1 relative bg-slate-50 rounded-2xl flex items-center px-4 py-3.5 border border-slate-100 focus-within:border-rose-300 focus-within:ring-4 ring-rose-50 transition-all overflow-hidden">
+                    <Calendar size={18} className="text-slate-400 mr-3 shrink-0" />
+                    <span className="text-slate-700 text-sm font-bold absolute left-12 pointer-events-none">
+                      {new Date(date).toLocaleDateString('fr-FR', {day: '2-digit', month:'short'})}
+                    </span>
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-transparent border-none text-transparent w-full focus:outline-none" />
                   </div>
-                  <div className="flex-1 bg-slate-50 rounded-xl flex items-center px-3 border border-slate-100 focus-within:ring-2 ring-rose-200 transition-all">
-                    <Clock size={16} className="text-slate-400 mr-2 shrink-0" />
-                    <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none text-slate-700 text-sm py-3 w-full focus:outline-none font-medium" />
+                  <div className="flex-1 relative bg-slate-50 rounded-2xl flex items-center px-4 py-3.5 border border-slate-100 focus-within:border-rose-300 focus-within:ring-4 ring-rose-50 transition-all overflow-hidden">
+                    <Clock size={18} className="text-slate-400 mr-3 shrink-0" />
+                    <span className="text-slate-700 text-sm font-bold absolute left-12 pointer-events-none">{time}</span>
+                    <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-transparent border-none text-transparent w-full focus:outline-none" />
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 text-center">Qu'a-t-elle mangé ?</h3>
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Qu'a-t-elle mangé ?</h3>
                   <div className="grid grid-cols-4 gap-2">
                     {activeGroups.map((group) => (
                       <button
                         key={group.id}
                         onClick={() => setSelectedGroup(group)}
-                        className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all ${
-                          selectedGroup?.id === group.id ? 'border-rose-400 bg-rose-50 scale-105 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'
+                        className={`flex flex-col items-center justify-center p-3 rounded-[1.5rem] border-2 transition-all duration-200 active:scale-95 ${
+                          selectedGroup?.id === group.id ? 'border-rose-400 bg-rose-50 shadow-sm' : 'border-transparent bg-slate-50'
                         }`}
                       >
-                        <span className="text-3xl mb-1">{group.emoji}</span>
-                        <span className={`text-[10px] font-bold ${selectedGroup?.id === group.id ? 'text-rose-700' : 'text-slate-500'} text-center mt-1`}>{group.label}</span>
+                        <span className="text-3xl mb-1.5 drop-shadow-sm">{group.emoji}</span>
+                        <span className={`text-[10px] font-bold ${selectedGroup?.id === group.id ? 'text-rose-700' : 'text-slate-500'}`}>{group.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 {selectedGroup && (
-                  <div className="animate-in fade-in zoom-in-95 duration-200">
-                    <input type="text" placeholder="Précision (optionnel, ex: Purée maison)" value={details} onChange={(e) => setDetails(e.target.value)} className="w-full bg-slate-50 border-none text-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 text-center placeholder:text-slate-400 font-medium" />
+                  <div className="animate-in zoom-in-95 duration-200">
+                    <input type="text" placeholder="Précision (ex: Purée carotte)" value={details} onChange={(e) => setDetails(e.target.value)} className="w-full bg-slate-50 border border-slate-100 text-slate-800 rounded-2xl px-5 py-4 text-sm font-bold focus:outline-none focus:border-rose-300 focus:ring-4 ring-rose-50 text-center placeholder:text-slate-400 placeholder:font-medium transition-all" />
                   </div>
                 )}
 
                 {selectedGroup && (
-                  <div className="animate-in slide-in-from-bottom-4 duration-300">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 text-center">Quelle quantité ?</h3>
-                    <div className="flex flex-col gap-2">
+                  <div className="animate-in slide-in-from-bottom duration-300">
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Quelle quantité ?</h3>
+                    <div className="flex flex-col gap-2.5">
                       {PORTIONS.map((p) => (
                         <button
                           key={p.id}
                           onClick={() => setPortion(p.id)}
-                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
-                            portion === p.id ? `${p.border} ${p.bg}` : 'border-transparent bg-slate-50 text-slate-500 opacity-70'
+                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                            portion === p.id ? `${p.border} ${p.bg} shadow-sm` : 'border-transparent bg-slate-50 text-slate-500 opacity-60'
                           }`}
                         >
                           <div className={portion === p.id ? p.color : 'text-slate-400'}>{p.icon}</div>
                           <span className={`text-sm font-bold ${portion === p.id ? p.color : 'text-slate-500'}`}>{p.label}</span>
-                          {portion === p.id && <div className={`ml-auto ${p.color}`}><CheckCircle2 size={18} /></div>}
+                          {portion === p.id && <div className={`ml-auto ${p.color}`}><CheckCircle2 size={20} /></div>}
                         </button>
                       ))}
                     </div>
@@ -418,8 +439,8 @@
                 )}
 
                 {selectedGroup && (
-                  <button onClick={handleSubmit} className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 transition-transform active:scale-[0.98] flex items-center justify-center gap-2 mt-4 text-lg">
-                    Valider
+                  <button onClick={handleSubmit} className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200/50 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 text-lg">
+                    Valider le repas
                   </button>
                 )}
               </div>
@@ -447,69 +468,78 @@
           };
 
           return (
-            <div className="p-4 space-y-6 animate-in slide-in-from-right-8 duration-300">
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center">
-                <h2 className="text-base font-bold text-slate-800 mb-6">Bilan des 7 derniers jours</h2>
+            <div className="p-4 space-y-6 animate-in slide-in-from-bottom duration-300">
+              <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-purple-400 opacity-50"></div>
+                <h2 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Bilan 7 derniers jours</h2>
                 <div className="flex justify-around items-center">
                   <div>
-                    <div className="text-4xl font-black text-orange-500 mb-1">{totalMeals}</div>
-                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Plats</div>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600 mb-1">{totalMeals}</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Plats</div>
                   </div>
-                  <div className="h-12 w-px bg-slate-100"></div>
+                  <div className="h-16 w-px bg-slate-100"></div>
                   <div>
-                    <div className="text-4xl font-black text-purple-500 mb-1">{totalSnacks}</div>
-                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Goûters</div>
+                    <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-purple-600 mb-1">{totalSnacks}</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Goûters</div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                <h2 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
-                  <Scale className="text-rose-400" size={20} /> Courbe de poids
+              <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+                <h2 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider flex items-center justify-center gap-2">
+                  <Scale className="text-rose-400" size={18} /> Courbe de poids
                 </h2>
 
                 {weights.length > 0 && (
                   <div className="mb-8">
-                    <svg viewBox="0 0 300 100" className="w-full h-auto overflow-visible">
+                    <svg viewBox="0 0 300 120" className="w-full h-auto overflow-visible">
                       <polyline
-                        fill="none" stroke="#f43f5e" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+                        fill="none" stroke="url(#rose-grad)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
                         points={weights.map((d, i) => {
-                          const x = 20 + (i * (260 / Math.max(1, weights.length - 1)));
+                          const x = weights.length === 1 ? 150 : 20 + (i * (260 / (weights.length - 1)));
                           const minW = Math.min(...weights.map(w => w.weight)) - 0.5;
                           const maxW = Math.max(...weights.map(w => w.weight)) + 0.5;
-                          // Eviter la division par 0 si tous les poids sont identiques
                           const divisor = maxW - minW === 0 ? 1 : maxW - minW;
-                          const y = 80 - ((d.weight - minW) / divisor) * 60;
+                          const y = 90 - ((d.weight - minW) / divisor) * 70;
                           return `${x},${y}`;
                         }).join(' ')}
                       />
                       {weights.map((d, i) => {
-                        const x = 20 + (i * (260 / Math.max(1, weights.length - 1)));
+                        const x = weights.length === 1 ? 150 : 20 + (i * (260 / (weights.length - 1)));
                         const minW = Math.min(...weights.map(w => w.weight)) - 0.5;
                         const maxW = Math.max(...weights.map(w => w.weight)) + 0.5;
                         const divisor = maxW - minW === 0 ? 1 : maxW - minW;
-                        const y = 80 - ((d.weight - minW) / divisor) * 60;
-                        return <circle key={d.id} cx={x} cy={y} r="5" fill="white" stroke="#f43f5e" strokeWidth="3" />;
+                        const y = 90 - ((d.weight - minW) / divisor) * 70;
+                        return <circle key={d.id} cx={x} cy={y} r="6" fill="#fff" stroke="#f43f5e" strokeWidth="3" />;
                       })}
+                      <defs>
+                        <linearGradient id="rose-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#f43f5e" />
+                          <stop offset="100%" stopColor="#ec4899" />
+                        </linearGradient>
+                      </defs>
                     </svg>
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-4">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-400 mt-3 px-2">
                       <span>{new Date(weights[0].date).toLocaleDateString('fr-FR', {month: 'short'})}</span>
-                      <span>Actuel : {weights[weights.length - 1].weight} kg</span>
+                      <span className="text-rose-500 bg-rose-50 px-2.5 py-1 rounded-lg">Actuel : {weights[weights.length - 1].weight} kg</span>
                     </div>
                   </div>
                 )}
 
                 <form onSubmit={handleWeightSubmit} className="flex flex-col gap-3">
                   <div className="flex gap-3">
-                    <div className="flex-[1.5] bg-slate-50 rounded-xl flex items-center px-3 border border-slate-100 focus-within:ring-2 ring-rose-200">
-                      <Calendar size={16} className="text-slate-400 mr-2 shrink-0" />
-                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent border-none text-slate-700 text-sm py-3 w-full focus:outline-none font-medium" required />
+                    <div className="flex-[1.5] relative bg-slate-50 rounded-2xl flex items-center px-4 py-3.5 border border-slate-100 focus-within:border-rose-300 focus-within:ring-4 ring-rose-50 overflow-hidden">
+                      <Calendar size={18} className="text-slate-400 mr-2 shrink-0" />
+                      <span className="text-slate-700 text-sm font-bold absolute left-10 pointer-events-none">
+                        {new Date(date).toLocaleDateString('fr-FR', {day: '2-digit', month:'short'})}
+                      </span>
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent border-none text-transparent w-full focus:outline-none" required />
                     </div>
-                    <div className="flex-1 bg-slate-50 rounded-xl flex items-center px-3 border border-slate-100 focus-within:ring-2 ring-rose-200">
-                      <input type="number" step="0.01" placeholder="Poids (kg)" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} className="bg-transparent border-none text-slate-700 text-sm py-3 w-full focus:outline-none font-medium text-center" required />
+                    <div className="flex-1 bg-slate-50 rounded-2xl flex items-center px-3 border border-slate-100 focus-within:border-rose-300 focus-within:ring-4 ring-rose-50">
+                      <input type="number" step="0.01" placeholder="Kg" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} className="bg-transparent border-none text-slate-800 font-bold text-sm py-3.5 w-full focus:outline-none text-center" required />
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 transition-colors text-white font-bold py-3.5 rounded-xl">
+                  <button type="submit" className="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl active:scale-95 transition-transform mt-1 shadow-md shadow-slate-200">
                     Ajouter la pesée
                   </button>
                 </form>
@@ -518,9 +548,7 @@
           );
         }
 
-        // --- DEMARRAGE DE L'APPLICATION ---
-        const rootElement = document.getElementById('root');
-        const root = ReactDOM.createRoot(rootElement);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
